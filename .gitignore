@@ -29,5 +29,8 @@ env/
 .DS_Store
 Thumbs.db
 
+# build artifacts
+old/
+
 # svitovyd generated map files (live inside each project, not here)
 .svitovyd/
