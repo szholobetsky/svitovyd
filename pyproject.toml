@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "svitovyd"
-version = "0.1.0"
+version = "0.1.1"
 description = "Project map builder and structural query tool — index, find, trace, deps, idiff"
 requires-python = ">=3.10"
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -19,6 +19,7 @@ Repository = "https://github.com/szholobetsky/svitovyd"
 [project.optional-dependencies]
 mcp  = ["mcp>=1.0"]
 http = ["mcp>=1.0", "uvicorn>=0.24"]
+ui   = ["gradio>=4.0"]
 
 [project.scripts]
 svitovyd     = "svitovyd.cli:main"

@@ -33,8 +33,11 @@ def main():
     p_idx = sub.add_parser('index', help='Scan directory and build map file')
     p_idx.add_argument('path', nargs='?', default='.',
                        help='Directory to scan (default: current directory)')
-    p_idx.add_argument('depth', nargs='?', type=int, default=2,
+    p_idx.add_argument('depth', nargs='?', type=int, default=None,
                        help='2=definitions+links (default), 3=also vars/params')
+    p_idx.add_argument('-d', '--depth-flag', type=int, default=None,
+                       dest='depth_flag', metavar='N',
+                       help='Depth (alias for positional depth argument)')
     p_idx.add_argument('--out', metavar='FILE',
                        help=f'Output file (default: {DEFAULT_MAP})')
     p_idx.add_argument('--stdout', action='store_true',
@@ -42,7 +45,7 @@ def main():
 
     # find
     p_find = sub.add_parser('find', help='Filter map blocks by filename/content')
-    p_find.add_argument('query', nargs='*',
+    p_find.add_argument('query', nargs=argparse.REMAINDER,
                         help='Filter tokens: term  !term  \\term  \\!term  -term  -!term')
     _map_path_arg(p_find)
 
@@ -63,11 +66,44 @@ def main():
     p_sym.add_argument('--k', type=int, default=5, help='Top-K hotspots (default: 5)')
     _map_path_arg(p_sym)
 
+    # keywords (+ sub-subcommands: index, extract)
+    p_kw = sub.add_parser('keywords', help='Keyword vocabulary: index, extract, ranked list')
+    # --map is global for all keywords sub-subcommands
+    _map_path_arg(p_kw)
+    p_kw.add_argument('--k', type=int, default=50, help='Top K for ranked list (default: 50)')
+    p_kw.add_argument('--plain', action='store_true', help='One identifier per line (for piping)')
+    kw_sub = p_kw.add_subparsers(dest='kw_cmd')
+
+    # keywords index
+    kw_sub.add_parser('index', help='Build .svitovyd/keyword.txt from map.txt')
+
+    # keywords extract
+    p_kw_ext = kw_sub.add_parser('extract', help='Extract real identifiers from text or file')
+    p_kw_ext.add_argument('source', nargs='+', help='Inline text or path to a file')
+    p_kw_ext.add_argument('-f', '--fuzzy', action='store_true',
+                          help='Fuzzy subword match (splits camelCase/snake_case)')
+    p_kw_ext.add_argument('-n', '--counts', action='store_true',
+                          help='Show frequency count next to each identifier')
+    p_kw_ext.add_argument('-c', '--csv', action='store_true',
+                          help='Comma-separated output (default: one per line)')
+    p_kw_ext.add_argument('-a', '--alpha', action='store_true',
+                          help='Sort alphabetically (default: order of appearance)')
+
     # idiff
     p_idiff = sub.add_parser('idiff', help='Structural diff between two map snapshots')
     p_idiff.add_argument('--prev', required=True, metavar='FILE',
                          help='Previous map snapshot')
     _map_path_arg(p_idiff)
+
+    # ui
+    p_ui = sub.add_parser('ui', help='Start Gradio web UI')
+    p_ui.add_argument('--port', type=int, default=7860)
+    p_ui.add_argument('--host', default='0.0.0.0')
+    p_ui.add_argument('--map', metavar='FILE', default=DEFAULT_MAP,
+                      help=f'Map file to open (default: {DEFAULT_MAP})')
+
+    # about
+    sub.add_parser('about', help='Show version and authorship')
 
     # serve (MCP)
     p_srv = sub.add_parser('serve', help='Start MCP server (stdio or HTTP/SSE)')
@@ -83,7 +119,7 @@ def main():
         from .indexer import build_map
 
         root  = os.path.abspath(args.path)
-        depth = max(2, min(getattr(args, 'depth', 2), 3))
+        depth = max(2, min(args.depth_flag or args.depth or 2, 3))
 
         if not os.path.isdir(root):
             print(f"error: not a directory: {root}", file=sys.stderr)
@@ -146,6 +182,30 @@ def main():
         _require_map(args.map)
         print(sym_report(args.map, k=args.k))
 
+    elif args.cmd == 'keywords':
+        if args.kw_cmd == 'index':
+            from .query import keyword_index
+            _require_map(args.map)
+            kw_path, count = keyword_index(args.map)
+            print(f"[svitovyd] {count} keywords → {kw_path}", file=sys.stderr)
+
+        elif args.kw_cmd == 'extract':
+            from .query import keyword_extract
+            _require_map(args.map)
+            source = ' '.join(args.source)
+            print(keyword_extract(
+                args.map, source,
+                fuzzy=args.fuzzy,
+                show_counts=args.counts,
+                csv_out=args.csv,
+                sort_alpha=args.alpha,
+            ))
+
+        else:
+            from .query import keywords_map
+            _require_map(args.map)
+            print(keywords_map(args.map, k=args.k, plain=args.plain))
+
     elif args.cmd == 'idiff':
         from .query import idiff_report
         _require_map(args.map)
@@ -163,6 +223,17 @@ def main():
         sys.argv = argv
         from .mcp_server import main as mcp_main
         mcp_main()
+
+    elif args.cmd == 'ui':
+        from .ui import main as ui_main
+        ui_main(port=args.port, host=args.host, map_path=args.map)
+
+    elif args.cmd == 'about':
+        print("svitovyd — Project map builder and structural query tool")
+        print()
+        print("(c) 2026 Stanislav Zholobetskyi")
+        print("Institute for Information Recording, National Academy of Sciences of Ukraine, Kyiv")
+        print("PhD research: \u00abIntelligent Technology for Software Development and Maintenance Support\u00bb")
 
     else:
         parser.print_help()

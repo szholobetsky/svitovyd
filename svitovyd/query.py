@@ -231,6 +231,162 @@ def deps_map(map_path: str, identifier: str, max_depth: int = 8) -> str | None:
     return '\n'.join(lines_out)
 
 
+# ── keywords ─────────────────────────────────────────────────────────────────────
+
+def _split_identifier(name: str) -> list[str]:
+    """Split camelCase / PascalCase / snake_case / kebab-case into lowercase subwords.
+
+    Examples:
+        RuleIndex   → ['rule', 'index']
+        rule_index  → ['rule', 'index']
+        HTTPRequest → ['http', 'request']
+    """
+    parts = re.split(r'[_\-]+', name)
+    result = []
+    for part in parts:
+        if not part:
+            continue
+        s = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', part)
+        s = re.sub(r'([a-z\d])([A-Z])', r'\1_\2', s)
+        result.extend(w.lower() for w in s.split('_') if len(w) >= 2)
+    seen: dict = {}
+    for w in result:
+        seen.setdefault(w, None)
+    return list(seen)
+
+
+def keyword_index(map_path: str) -> tuple[str, int]:
+    """Scan map.txt, extract all identifier tokens, save to keyword.txt (CSV).
+
+    Returns (keyword_path, word_count).
+    CSV columns: word, count, lines  (semicolon-separated line numbers in map.txt)
+    """
+    import csv
+    from collections import defaultdict
+
+    with open(map_path, encoding='utf-8', errors='replace') as f:
+        lines = f.readlines()
+
+    token_re = re.compile(r'[a-zA-Z_][a-zA-Z0-9_]{1,}')
+    word_lines: dict = defaultdict(set)
+    for lineno, line in enumerate(lines, 1):
+        for m in token_re.finditer(line):
+            word_lines[m.group()].add(lineno)
+
+    kw_path = os.path.join(os.path.dirname(os.path.abspath(map_path)), 'keyword.txt')
+    sorted_words = sorted(word_lines, key=str.lower)
+    with open(kw_path, 'w', encoding='utf-8', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['word', 'count', 'lines'])
+        for word in sorted_words:
+            lns = sorted(word_lines[word])
+            w.writerow([word, len(lns), ';'.join(str(l) for l in lns)])
+
+    return kw_path, len(sorted_words)
+
+
+def keyword_extract(
+    map_path: str,
+    source: str,
+    fuzzy: bool = False,
+    show_counts: bool = False,
+    csv_out: bool = False,
+    sort_alpha: bool = False,
+) -> str:
+    """Extract real codebase identifiers from source text (or file path).
+
+    Looks up words in keyword.txt (built by keyword_index).
+    fuzzy=True  → subword match: splits both query and keyword, matches if ALL
+                  query subwords (≥5 chars) appear in the keyword's subwords.
+    fuzzy=False → exact identifier match (default).
+    """
+    import csv as _csv
+
+    kw_path = os.path.join(os.path.dirname(os.path.abspath(map_path)), 'keyword.txt')
+    if not os.path.exists(kw_path):
+        return f"keyword.txt not found: {kw_path}\nRun: svitovyd keywords index"
+
+    # load keyword vocab
+    _csv.field_size_limit(10_000_000)
+    kw_freq: dict = {}
+    with open(kw_path, encoding='utf-8', newline='') as f:
+        reader = _csv.reader(f)
+        next(reader, None)
+        for row in reader:
+            if len(row) >= 2:
+                try:
+                    kw_freq[row[0]] = int(row[1])
+                except ValueError:
+                    pass
+
+    # resolve source: file or inline text
+    if os.path.exists(source):
+        with open(source, encoding='utf-8', errors='replace') as f:
+            text = f.read()
+    else:
+        text = source
+
+    token_re = re.compile(r'[a-zA-Z_][a-zA-Z0-9_]{1,}')
+    seen: dict = {}  # keyword → order of first match
+
+    if fuzzy:
+        kw_parts = {kw: frozenset(_split_identifier(kw)) for kw in kw_freq}
+        for i, m in enumerate(token_re.finditer(text)):
+            query_parts = frozenset(
+                w for w in _split_identifier(m.group()) if len(w) >= 5
+            )
+            if not query_parts:
+                continue
+            for kw, kp in kw_parts.items():
+                if query_parts <= kp and kw not in seen:
+                    seen[kw] = i
+    else:
+        kw_set = set(kw_freq)
+        for i, m in enumerate(token_re.finditer(text)):
+            w = m.group()
+            if w in kw_set and w not in seen:
+                seen[w] = i
+
+    if not seen:
+        return '(no matching keywords found)'
+
+    if sort_alpha:
+        result = sorted(seen, key=lambda w: w.lower())
+    elif show_counts:
+        result = sorted(seen, key=lambda w: (-kw_freq[w], w.lower()))
+    else:
+        result = sorted(seen, key=lambda w: (seen[w], w.lower()))
+
+    items = [f"{w}({kw_freq[w]})" if show_counts else w for w in result]
+    return ', '.join(items) if csv_out else '\n'.join(items)
+
+
+def keywords_map(map_path: str, k: int = 50, plain: bool = False) -> str:
+    """Top-K identifiers ranked by reference count.
+
+    plain=True  → one identifier per line (for piping)
+    plain=False → ranked table with count and defining file
+    """
+    defines_map, links_map = parse_map(map_path)
+
+    ref_count: dict[str, int] = {}
+    for targets in links_map.values():
+        for refs in targets.values():
+            for name in refs:
+                ref_count[name] = ref_count.get(name, 0) + 1
+
+    all_defines = {name: frel for frel, defs in defines_map.items() for name in defs}
+    ranked = sorted(all_defines, key=lambda n: (-ref_count.get(n, 0), n))[:k]
+
+    if plain:
+        return '\n'.join(ranked)
+
+    lines = [f"top-{k} identifiers by reference count  (total defined: {len(all_defines)})", ""]
+    for i, name in enumerate(ranked, 1):
+        lines.append(f"  {i:>3}.  {ref_count.get(name, 0):>4}  {name:<40}  {all_defines[name]}")
+    return '\n'.join(lines)
+
+
 # ── symmetry ─────────────────────────────────────────────────────────────────────
 
 def sym_report(map_path: str, k: int = 5) -> str:

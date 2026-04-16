@@ -24,6 +24,9 @@ pip install "svitovyd[mcp]"
 
 # CLI + MCP + HTTP/SSE transport (for remote/LAN connections)
 pip install "svitovyd[http]"
+
+# CLI + web UI (Gradio)
+pip install "svitovyd[ui]"
 ```
 
 ---
@@ -33,11 +36,13 @@ pip install "svitovyd[http]"
 ```bash
 # Build map for current directory
 svitovyd index .
+svitovyd index . 3          # depth 3: also variables and parameters
 
 # Search
 svitovyd find auth
 svitovyd find controller !test
 svitovyd find "\UserService"          # blocks containing UserService
+svitovyd find "\format_mismatch -format_mismatch"  # show only lines with term
 
 # Trace call chain
 svitovyd trace insertEmail            # who calls insertEmail?
@@ -46,11 +51,86 @@ svitovyd deps DatabaseManager         # what does DatabaseManager depend on?
 # Health report
 svitovyd sym --k 10
 
+# Keyword vocabulary
+svitovyd keywords index               # build .svitovyd/keyword.txt
+svitovyd keywords extract "add author field to Book class" -f   # fuzzy extract
+svitovyd keywords                     # top-50 identifiers by reference count
+
 # Structural diff (after changes)
 cp .svitovyd/map.txt .svitovyd/map.prev.txt
 svitovyd index .
 svitovyd idiff --prev .svitovyd/map.prev.txt
 ```
+
+---
+
+## Keywords
+
+The keyword system bridges natural language task descriptions to real codebase identifiers. Two-step workflow:
+
+**Step 1 — build the vocabulary index:**
+```bash
+svitovyd index .
+svitovyd keywords index
+# → .svitovyd/keyword.txt  (word, frequency, line numbers — CSV)
+```
+
+**Step 2 — extract identifiers from a task description:**
+```bash
+svitovyd keywords extract "add author field to Book class" -f
+# → Book, author, addAuthor, BookRepository, …
+```
+
+Then use the extracted identifiers in `find` or `trace`:
+```bash
+svitovyd find "\Book"
+svitovyd trace BookRepository
+```
+
+### Extract flags
+
+| Flag | Meaning |
+|---|---|
+| `-f` | Fuzzy subword match — splits camelCase/snake_case, matches if all query subwords (≥5 chars) appear in the identifier |
+| `-n` | Show frequency count next to each identifier: `Book(47)` |
+| `-c` | Comma-separated output (default: one per line) |
+| `-a` | Sort alphabetically (default: order of appearance in text) |
+
+**Exact match** (no `-f`): query word must exactly match a keyword.txt entry — faster, no false positives.
+
+**Fuzzy match** (`-f`): `"format mismatch"` matches `formatParameterMismatch`, `format_mismatch`, `FormatMismatch`. Use this for task descriptions written in natural language.
+
+### Ranked list (no task text)
+
+```bash
+svitovyd keywords           # top 50 by reference count
+svitovyd keywords --k 100   # top 100
+svitovyd keywords --plain   # one per line, for piping
+```
+
+---
+
+## Web UI
+
+Browse the project map from a browser — useful when svitovyd runs on a remote machine or LAN server.
+
+```bash
+pip install "svitovyd[ui]"
+
+svitovyd ui                        # opens at http://localhost:7860
+svitovyd ui --port 7861            # custom port
+svitovyd ui --map /path/to/map.txt # explicit map file
+```
+
+Binds to `0.0.0.0` by default, so it is immediately accessible from any machine on the same LAN:
+
+```
+http://192.168.1.42:7860
+```
+
+Tabs: **Find** · **Trace** · **Deps** · **Sym** · **Keywords** · **Idiff** · **Download**
+
+The **Keywords** tab accepts an optional task description — enter text and it runs fuzzy identifier extraction; leave empty to get the ranked list. The **Download** tab lets you download `map.txt` and `keywords.txt` directly from the browser (useful when svitovyd runs on a remote server).
 
 ---
 
@@ -258,14 +338,16 @@ map_file        current map file (default: .svitovyd/map.txt)
 
 ```
 1. svitovyd index .                     # or: map_index path="."
-2. map_find query="auth"                # explore
-3. map_trace identifier="login"         # understand call chain
-4. map_deps identifier="DatabaseManager"# understand dependencies
-5. map_sym                              # health check before refactoring
-6. [make changes]
-7. cp .svitovyd/map.txt .svitovyd/map.prev.txt
-8. map_index path="."                   # rebuild
-9. map_idiff prev_map_file=".svitovyd/map.prev.txt"  # verify impact
+2. svitovyd keywords index              # build keyword vocabulary
+3. svitovyd keywords extract "task description" -f -c  # get real identifiers
+4. map_find query="auth"                # explore by identifier / filename
+5. map_trace identifier="login"         # understand call chain
+6. map_deps identifier="DatabaseManager"# understand dependencies
+7. map_sym                              # health check before refactoring
+8. [make changes]
+9. cp .svitovyd/map.txt .svitovyd/map.prev.txt
+10. map_index path="."                  # rebuild
+11. map_idiff prev_map_file=".svitovyd/map.prev.txt"  # verify impact
 ```
 
 ---
@@ -289,3 +371,11 @@ svitovyd is one of four tools that together form an **intellectual development s
 Together they cover the full development loop: understand the codebase, find relevant history, work with AI locally, remember what was decided.
 
 The name comes from Slavic mythology. Svitovyd (Світовид) is the four-faced god who sees all directions simultaneously — past, future, war, and harvest. A fitting name for a tool that maps an entire codebase at once.
+
+---
+
+## About
+
+(c) 2026 Stanislav Zholobetskyi  
+Institute for Information Recording, National Academy of Sciences of Ukraine, Kyiv  
+PhD research: «Intelligent Technology for Software Development and Maintenance Support»
