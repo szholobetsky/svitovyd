@@ -255,6 +255,56 @@ def _split_identifier(name: str) -> list[str]:
     return list(seen)
 
 
+def _build_line_to_file(map_path: str) -> dict:
+    """Return {line_number: file_path} for every line in map.txt.
+
+    File ownership: nearest non-indented, non-comment line above.
+    """
+    with open(map_path, encoding='utf-8', errors='replace') as f:
+        lines = f.readlines()
+    result = {}
+    current_file = None
+    for i, line in enumerate(lines, 1):
+        stripped = line.rstrip('\n')
+        if stripped and not stripped[0].isspace() and not stripped.startswith('#'):
+            current_file = stripped.strip()
+        if current_file:
+            result[i] = current_file
+    return result
+
+
+def keyword_to_files(map_path: str, word: str) -> list:
+    """Return list of files where *word* appears, in order of first occurrence."""
+    import csv as _csv
+
+    kw_path = os.path.join(os.path.dirname(os.path.abspath(map_path)), 'keyword.txt')
+    if not os.path.exists(kw_path):
+        return []
+
+    line_nums = []
+    _csv.field_size_limit(10_000_000)
+    with open(kw_path, encoding='utf-8', newline='') as f:
+        reader = _csv.reader(f)
+        next(reader, None)
+        for row in reader:
+            if len(row) >= 3 and row[0] == word:
+                line_nums = [int(x) for x in row[2].split(';') if x]
+                break
+
+    if not line_nums:
+        return []
+
+    line_to_file = _build_line_to_file(map_path)
+    seen: set = set()
+    files = []
+    for ln in line_nums:
+        f = line_to_file.get(ln)
+        if f and f not in seen:
+            seen.add(f)
+            files.append(f)
+    return files
+
+
 def keyword_index(map_path: str) -> tuple[str, int]:
     """Scan map.txt, extract all identifier tokens, save to keyword.txt (CSV).
 
@@ -289,16 +339,21 @@ def keyword_extract(
     map_path: str,
     source: str,
     fuzzy: bool = False,
+    like: bool = False,
     show_counts: bool = False,
     csv_out: bool = False,
     sort_alpha: bool = False,
+    show_origin: bool = False,
+    sort_count: bool = False,
 ) -> str:
     """Extract real codebase identifiers from source text (or file path).
 
     Looks up words in keyword.txt (built by keyword_index).
-    fuzzy=True  → subword match: splits both query and keyword, matches if ALL
-                  query subwords (≥5 chars) appear in the keyword's subwords.
-    fuzzy=False → exact identifier match (default).
+    fuzzy=True → subword match: splits both query and keyword, matches if ALL
+                 query subwords (≥5 chars) appear in the keyword's subwords.
+    like=True  → substring match: each query token matches any keyword that
+                 contains it as a case-insensitive substring (%token%).
+    default    → exact identifier match.
     """
     import csv as _csv
 
@@ -340,6 +395,12 @@ def keyword_extract(
             for kw, kp in kw_parts.items():
                 if query_parts <= kp and kw not in seen:
                     seen[kw] = i
+    elif like:
+        for i, m in enumerate(token_re.finditer(text)):
+            token = m.group().lower()
+            for j, kw in enumerate(kw_freq):
+                if token in kw.lower() and kw not in seen:
+                    seen[kw] = i * 100000 + j
     else:
         kw_set = set(kw_freq)
         for i, m in enumerate(token_re.finditer(text)):
@@ -352,13 +413,42 @@ def keyword_extract(
 
     if sort_alpha:
         result = sorted(seen, key=lambda w: w.lower())
-    elif show_counts:
+    elif sort_count or show_counts:
         result = sorted(seen, key=lambda w: (-kw_freq[w], w.lower()))
     else:
         result = sorted(seen, key=lambda w: (seen[w], w.lower()))
 
-    items = [f"{w}({kw_freq[w]})" if show_counts else w for w in result]
-    return ', '.join(items) if csv_out else '\n'.join(items)
+    if not show_origin:
+        items = [f"{w}({kw_freq[w]})" if show_counts else w for w in result]
+        return ', '.join(items) if csv_out else '\n'.join(items)
+
+    line_to_file = _build_line_to_file(map_path)
+    import csv as _csv2
+    _csv2.field_size_limit(10_000_000)
+    kw_path = os.path.join(os.path.dirname(os.path.abspath(map_path)), 'keyword.txt')
+    kw_lines: dict = {}
+    with open(kw_path, encoding='utf-8', newline='') as f:
+        reader = _csv2.reader(f)
+        next(reader, None)
+        for row in reader:
+            if len(row) >= 3 and row[0] in seen:
+                kw_lines[row[0]] = [int(x) for x in row[2].split(';') if x]
+
+    lines_out = []
+    for w in result:
+        label = f"{w}({kw_freq[w]})" if show_counts else w
+        files: list = []
+        seen_files: set = set()
+        for ln in kw_lines.get(w, []):
+            f = line_to_file.get(ln)
+            if f and f not in seen_files:
+                seen_files.add(f)
+                files.append(f)
+        if files:
+            lines_out.append(f"{label} -> {', '.join(files)}")
+        else:
+            lines_out.append(label)
+    return '\n'.join(lines_out)
 
 
 def keywords_map(map_path: str, k: int = 50, plain: bool = False) -> str:

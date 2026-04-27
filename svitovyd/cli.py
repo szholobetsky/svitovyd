@@ -82,12 +82,18 @@ def main():
     p_kw_ext.add_argument('source', nargs='+', help='Inline text or path to a file')
     p_kw_ext.add_argument('-f', '--fuzzy', action='store_true',
                           help='Fuzzy subword match (splits camelCase/snake_case)')
+    p_kw_ext.add_argument('-l', '--like', action='store_true',
+                          help='Substring match: query token appears anywhere in keyword (%token%)')
     p_kw_ext.add_argument('-n', '--counts', action='store_true',
                           help='Show frequency count next to each identifier')
     p_kw_ext.add_argument('-c', '--csv', action='store_true',
                           help='Comma-separated output (default: one per line)')
     p_kw_ext.add_argument('-a', '--alpha', action='store_true',
                           help='Sort alphabetically (default: order of appearance)')
+    p_kw_ext.add_argument('-s', '--sort-count', action='store_true',
+                          help='Sort by codebase frequency descending')
+    p_kw_ext.add_argument('-o', '--origin', action='store_true',
+                          help='Show which files each keyword appears in')
 
     # idiff
     p_idiff = sub.add_parser('idiff', help='Structural diff between two map snapshots')
@@ -196,9 +202,12 @@ def main():
             print(keyword_extract(
                 args.map, source,
                 fuzzy=args.fuzzy,
+                like=args.like,
                 show_counts=args.counts,
                 csv_out=args.csv,
                 sort_alpha=args.alpha,
+                show_origin=args.origin,
+                sort_count=args.sort_count,
             ))
 
         else:

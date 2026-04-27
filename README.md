@@ -54,6 +54,7 @@ svitovyd sym --k 10
 # Keyword vocabulary
 svitovyd keywords index               # build .svitovyd/keyword.txt
 svitovyd keywords extract "add author field to Book class" -f   # fuzzy extract
+svitovyd keywords extract "rule" -l -o                          # like match + show files
 svitovyd keywords                     # top-50 identifiers by reference count
 
 # Structural diff (after changes)
@@ -91,14 +92,38 @@ svitovyd trace BookRepository
 
 | Flag | Meaning |
 |---|---|
-| `-f` | Fuzzy subword match — splits camelCase/snake_case, matches if all query subwords (≥5 chars) appear in the identifier |
-| `-n` | Show frequency count next to each identifier: `Book(47)` |
-| `-c` | Comma-separated output (default: one per line) |
-| `-a` | Sort alphabetically (default: order of appearance in text) |
+| `-f` / `--fuzzy` | Fuzzy subword match — splits camelCase/snake_case, matches if all query subwords (≥5 chars) appear in the identifier |
+| `-l` / `--like` | Like match — any keyword containing the query token as a substring (`%token%`) |
+| `-n` / `--counts` | Show frequency count next to each identifier: `Book(47)` |
+| `-s` / `--sort-count` | Sort by codebase frequency descending (most common first) |
+| `-c` / `--csv` | Comma-separated output (default: one per line) |
+| `-a` / `--alpha` | Sort alphabetically (default: order of appearance in text) |
+| `-o` / `--origin` | Show which files each keyword appears in: `Book -> models/book.rb, spec/book_spec.rb` |
 
-**Exact match** (no `-f`): query word must exactly match a keyword.txt entry — faster, no false positives.
+**Exact match** (default): query word must exactly match a keyword.txt entry — fastest, no false positives.
 
-**Fuzzy match** (`-f`): `"format mismatch"` matches `formatParameterMismatch`, `format_mismatch`, `FormatMismatch`. Use this for task descriptions written in natural language.
+**Like match** (`-l`): `"rule"` matches `parameter_rule`, `cop_rule`, `RuleIndex`, `load_rules` — any identifier that contains `rule` as a substring. Stricter than fuzzy, broader than exact.
+
+**Fuzzy match** (`-f`): `"format mismatch"` matches `formatParameterMismatch`, `format_mismatch`, `FormatMismatch`. Use for natural language task descriptions. Splits both query and keyword into subwords; query subwords shorter than 5 chars are treated as stopwords.
+
+### Origin grounding
+
+`-o` (`--origin`) resolves each matched keyword back to the files it appears in — turning a list of identifiers into a list of files to investigate:
+
+```bash
+svitovyd keywords extract "add validation rule" -l -o
+# parameter_rule -> lib/rubocop/cop/style/rule.rb, config/default.yml
+# cop_rule       -> lib/rubocop/cop/base.rb, lib/rubocop/runner.rb
+# load_rules     -> lib/rubocop/config_loader.rb
+```
+
+You can also look up a single keyword directly:
+
+```python
+from svitovyd.query import keyword_to_files
+files = keyword_to_files(".svitovyd/map.txt", "parameter_rule")
+# ['lib/rubocop/cop/style/rule.rb', 'config/default.yml']
+```
 
 ### Ranked list (no task text)
 
@@ -339,7 +364,8 @@ map_file        current map file (default: .svitovyd/map.txt)
 ```
 1. svitovyd index .                     # or: map_index path="."
 2. svitovyd keywords index              # build keyword vocabulary
-3. svitovyd keywords extract "task description" -f -c  # get real identifiers
+3. svitovyd keywords extract "task description" -f -c  # get real identifiers (fuzzy)
+   svitovyd keywords extract "rule" -l -o              # like match + show origin files
 4. map_find query="auth"                # explore by identifier / filename
 5. map_trace identifier="login"         # understand call chain
 6. map_deps identifier="DatabaseManager"# understand dependencies
