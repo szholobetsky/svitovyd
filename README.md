@@ -1,3 +1,5 @@
+![svitovyd](images/svitovyd.png)
+
 # svitovyd
 
 Project map builder and structural query tool for codebases.
