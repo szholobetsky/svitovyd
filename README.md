@@ -382,7 +382,7 @@ map_file        current map file (default: .svitovyd/map.txt)
 
 ## Part of the SIMARGL toolkit
 
-svitovyd is one of four tools that together form an **intellectual development support system**:
+svitovyd is one of five tools that together form an **intellectual development support system**:
 
 | Tool | Role |
 |---|---|
@@ -390,13 +390,15 @@ svitovyd is one of four tools that together form an **intellectual development s
 | **[svitovyd](https://github.com/szholobetsky/svitovyd)** | Project map — scans any codebase and produces a structural map of definitions and cross-file dependencies; exposes it as an MCP server |
 | **[1bcoder](https://github.com/szholobetsky/1bcoder)** | AI coding assistant for small local models — surgical context management, agents, parallel inference, proc scripts |
 | **[yasna](https://github.com/szholobetsky/yasna)** | Session memory — indexes conversations from all AI agents so you can find what was discussed, when, and where |
+| **[radogast](https://github.com/szholobetsky/radogast)** | Context drift monitor — measures how far an AI agent's conversation has drifted from the original task |
 
 - **simargl** answers: *what code is related to this task?*
 - **svitovyd** answers: *how is the code structured and what depends on what?*
 - **1bcoder** answers: *how do I work with local models efficiently?*
 - **yasna** answers: *where did I already discuss this?*
+- **radogast** answers: *is the AI agent still on track toward the goal?*
 
-Together they cover the full development loop: understand the codebase, find relevant history, work with AI locally, remember what was decided.
+Together they cover the full development loop: understand the codebase, find relevant history, work with AI locally, remember what was decided, and verify the context stays on target.
 
 The name comes from Slavic mythology. Svitovyd (Світовид) is the four-faced god who sees all directions simultaneously — past, future, war, and harvest. A fitting name for a tool that maps an entire codebase at once.
 
@@ -404,6 +406,6 @@ The name comes from Slavic mythology. Svitovyd (Світовид) is the four-fa
 
 ## About
 
-(c) 2026 Stanislav Zholobetskyi  
+(c) 2026 Stanislav Zholobetskyi, Oleh Andriichuk  
 Institute for Information Recording, National Academy of Sciences of Ukraine, Kyiv  
 PhD research: «Intelligent Technology for Software Development and Maintenance Support»

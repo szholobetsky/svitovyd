@@ -23,6 +23,8 @@ def _map_path_arg(p):
 
 
 def main():
+    if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+        sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
     parser = argparse.ArgumentParser(
         prog='svitovyd',
         description='Project map builder and query tool.',
