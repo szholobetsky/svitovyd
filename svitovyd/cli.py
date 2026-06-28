@@ -109,6 +109,8 @@ def main():
     p_ui.add_argument('--host', default='0.0.0.0')
     p_ui.add_argument('--map', metavar='FILE', default=DEFAULT_MAP,
                       help=f'Map file to open (default: {DEFAULT_MAP})')
+    p_ui.add_argument('--lang',  default=None, help='UI language (en/uk; default from config)')
+    p_ui.add_argument('--theme', default=None, help='UI theme (Monochrome/Soft/Glass/Ocean/Default)')
 
     # about
     sub.add_parser('about', help='Show version and authorship')
@@ -236,8 +238,12 @@ def main():
         mcp_main()
 
     elif args.cmd == 'ui':
-        from .ui import main as ui_main
-        ui_main(port=args.port, host=args.host, map_path=args.map)
+        from .ui import main as ui_main, _load_config
+        cfg   = _load_config()
+        lang  = args.lang  or cfg.get("lang",  "en")
+        theme = args.theme or cfg.get("theme", "Monochrome")
+        ui_main(port=args.port, host=args.host, map_path=args.map,
+                lang=lang, theme=theme)
 
     elif args.cmd == 'about':
         print("svitovyd — Project map builder and structural query tool")
