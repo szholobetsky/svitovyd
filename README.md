@@ -382,7 +382,7 @@ map_file        current map file (default: .svitovyd/map.txt)
 
 ## Part of the SIMARGL toolkit
 
-svitovyd is one of seven tools that together form an **intellectual development support system**:
+svitovyd is one of eight tools that together form an **intellectual development support system**:
 
 | Tool | Role |
 |---|---|
@@ -393,6 +393,7 @@ svitovyd is one of seven tools that together form an **intellectual development 
 | **[radogast](https://github.com/szholobetsky/radogast)** | Context drift monitor — measures how far an AI agent's conversation has drifted from the original task |
 | **[vyrii](https://github.com/szholobetsky/vyrii)** | Local AI web UI — chat, translate, web research, RAG, and file management via Gradio; powered by Ollama or any OpenAI-compatible backend |
 | **[syryn](https://github.com/szholobetsky/syryn)** | Bluetooth identity beacon — returns hostname, mDNS, and active network interfaces for headless devices |
+| **[alkonost](https://github.com/szholobetsky/alkonost)** | Task-board viewer/editor — Trello-style board and backlog over 1bcoder's `deepagent_task` output, with full spec rendering and autosave |
 
 - **simargl** answers: *what code is related to this task?*
 - **svitovyd** answers: *how is the code structured and what depends on what?*
@@ -401,6 +402,7 @@ svitovyd is one of seven tools that together form an **intellectual development 
 - **radogast** answers: *is the AI agent still on track toward the goal?*
 - **vyrii** answers: *how do I access all of this through a browser?*
 - **syryn** answers: *what is the address of this headless device?*
+- **alkonost** answers: *where do I see and edit the tasks generated from a spec tree?*
 
 Together they cover the full development loop: understand the codebase, find relevant history, work with AI locally, remember what was decided, and verify the context stays on target.
 
